@@ -23,6 +23,7 @@ final class PanelController: ObservableObject {
 
     private let panel: KeyablePanel
     private weak var statusItem: NSStatusItem?
+    private var clickMonitor: Any?
     private let defaultSize = NSSize(width: 380, height: 540)
 
     init(state: AppState) {
@@ -37,6 +38,10 @@ final class PanelController: ObservableObject {
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = true      // drag from any empty area
         panel.level = .floating
+        // Never auto-hide on app deactivation: an accessory app isn't reliably
+        // "active", which would hide the panel the instant it's shown. Closing on a
+        // click outside is handled by a global mouse monitor instead (see below).
+        panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 320, height: 320)
@@ -51,7 +56,20 @@ final class PanelController: ObservableObject {
         panel.contentView = hosting
 
         panel.setFrameAutosaveName("DockswainPanel")
-        applyPinned()
+        installClickOutsideMonitor()
+    }
+
+    /// A global mouse-down monitor fires only for clicks in OTHER apps / the desktop
+    /// (never our own panel or status item, which are local events). So when the
+    /// panel isn't pinned, any click outside it closes it — without tying that to the
+    /// unreliable app-active state.
+    private func installClickOutsideMonitor() {
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.panel.isVisible && !self.pinnedOpen { self.panel.orderOut(nil) }
+            }
+        }
     }
 
     func attach(to item: NSStatusItem) { statusItem = item }
@@ -73,13 +91,6 @@ final class PanelController: ObservableObject {
     func togglePin() {
         pinnedOpen.toggle()
         UserDefaults.standard.set(pinnedOpen, forKey: "panelPinned")
-        applyPinned()
-    }
-
-    /// Not pinned → the panel hides when the app deactivates (a click outside);
-    /// pinned → it stays put.
-    private func applyPinned() {
-        panel.hidesOnDeactivate = !pinnedOpen
     }
 
     // MARK: - Dock / position
