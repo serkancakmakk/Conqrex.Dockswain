@@ -67,6 +67,12 @@ struct MenuContentView: View {
             }
             Spacer()
             if state.isLoading { ProgressView().controlSize(.small) }
+            Button { panel.togglePin() } label: {
+                Image(systemName: panel.pinnedOpen ? "pin.fill" : "pin")
+                    .foregroundStyle(panel.pinnedOpen ? Color.accentColor : Color.primary)
+            }
+            .buttonStyle(.borderless)
+            .help(panel.pinnedOpen ? "Pinned open — click outside won't close it" : "Pin open (keep panel open when clicking elsewhere)")
             Button { state.refreshNow() } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(.borderless).help("Refresh")
                 .disabled(state.selectedServer == nil)

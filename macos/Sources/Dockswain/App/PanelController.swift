@@ -17,6 +17,10 @@ final class PanelController: ObservableObject {
     @Published private(set) var dock: Dock =
         Dock(rawValue: UserDefaults.standard.string(forKey: "panelDock") ?? "") ?? .floating
 
+    /// When true the panel stays open after it loses focus; when false a click
+    /// outside (deactivating the app) closes it, like a normal menu-bar popup.
+    @Published private(set) var pinnedOpen: Bool = UserDefaults.standard.bool(forKey: "panelPinned")
+
     private let panel: KeyablePanel
     private weak var statusItem: NSStatusItem?
     private let defaultSize = NSSize(width: 380, height: 540)
@@ -33,7 +37,6 @@ final class PanelController: ObservableObject {
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = true      // drag from any empty area
         panel.level = .floating
-        panel.hidesOnDeactivate = false               // stay put when docked to a side
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 320, height: 320)
@@ -48,6 +51,7 @@ final class PanelController: ObservableObject {
         panel.contentView = hosting
 
         panel.setFrameAutosaveName("DockswainPanel")
+        applyPinned()
     }
 
     func attach(to item: NSStatusItem) { statusItem = item }
@@ -62,6 +66,20 @@ final class PanelController: ObservableObject {
             NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
         }
+    }
+
+    // MARK: - Pin (stay open when clicking away)
+
+    func togglePin() {
+        pinnedOpen.toggle()
+        UserDefaults.standard.set(pinnedOpen, forKey: "panelPinned")
+        applyPinned()
+    }
+
+    /// Not pinned → the panel hides when the app deactivates (a click outside);
+    /// pinned → it stays put.
+    private func applyPinned() {
+        panel.hidesOnDeactivate = !pinnedOpen
     }
 
     // MARK: - Dock / position
